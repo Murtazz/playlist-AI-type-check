@@ -1,0 +1,23 @@
+# For OAuth and HTTP requests
+requests
+python-dotenv
+
+# For audio feature extraction
+librosa
+numpy
+scipy
+soundfile
+
+# For audio previews
+pydub
+
+# For plotting/visualizations (optional but useful)
+matplotlib
+seaborn
+
+# Backend framework
+fastapi
+uvicorn
+
+# Optional: for building a Streamlit UI
+streamlit
