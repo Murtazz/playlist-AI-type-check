@@ -7,6 +7,8 @@ librosa
 numpy
 scipy
 soundfile
+pytube
+yt_dlp
 
 # For audio previews
 pydub

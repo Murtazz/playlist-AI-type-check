@@ -1,6 +1,8 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import RedirectResponse
 from dotenv import load_dotenv
+from track_downloader import search_youtube, download_video
+from audio_analysis import extract_features_from_file
 import os
 import requests
 import urllib.parse
@@ -47,23 +49,51 @@ def callback(request: Request, code: str = None):
     if not access_token:
         return {"error": "Failed to get access token", "details": token_data}
 
-    # 🎉 Test fetching top tracks
     headers = {"Authorization": f"Bearer {access_token}"}
     top_tracks_response = requests.get("https://api.spotify.com/v1/me/top/tracks", headers=headers)
 
     if top_tracks_response.status_code != 200:
-        return JSONResponse(content={"error": "Failed to fetch top tracks", "details": top_tracks_response.json()}, status_code=top_tracks_response.status_code)
+        return {
+            "error": "Failed to fetch top tracks",
+            "details": top_tracks_response.json(),
+            "status_code": top_tracks_response.status_code,
+        }
 
     top_tracks_data = top_tracks_response.json()
-    preview_urls = [
-        track["preview_url"]
-        for track in top_tracks_data.get("items", [])
-        if track.get("preview_url")
-    ]
-    
+    features = {}
+
+    for track in top_tracks_data.get("items", []):
+        track_name = f"{track['name']} {track['artists'][0]['name']}"
+        filename = f"{track['id']}.mp3"
+
+        try:
+            youtube_url = search_youtube(track_name)
+            download_video(youtube_url, filename)
+            features = extract_features_from_file(filename)
+            os.remove(filename)  # cleanup
+            break  # process only one
+        except Exception as e:
+            print(f"Error processing {track_name}: {e}")
+
     return {
         "access_token": access_token,
-        "preview_urls": preview_urls,
-        "raw_tracks": top_tracks_data
+        "extracted_features": features,
+        "raw_tracks": top_tracks_data,
     }
-    #return {"access_token": access_token, "top_tracks": top_tracks.json()}
+
+
+@app.get("/analyze")
+def analyze_track(query: str = Query(..., description="Search term for the track")):
+    filename = query.replace(" ", "_").lower() + ".mp3"
+
+    try:
+        youtube_url = search_youtube(query)
+        download_video(youtube_url, filename)
+        features = extract_features_from_file(filename)
+        os.remove(filename)
+        return {
+            "track": query,
+            "features": features,
+        }
+    except Exception as e:
+        return {"error": f"Failed to analyze '{query}': {str(e)}"}
